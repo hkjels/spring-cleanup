@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+
+#
+# Setup.
+#
+
+VERSION="0.0.1"
+PATTERN="\(.git\|.svn\|.hg\|.DS_Store\)"
+SRC=$(find . -type f | grep -v $PATTERN)
+
+#
+# Output usage information.
+#
+
+display_help() {
+  cat <<-EOF
+
+  Usage: $(basename $0) [options] [COMMAND] [args]
+
+  Commands:
+
+    column [width]          Output files with more columns than [width]
+    stats                   Output some statistics of the directory
+
+  Options:
+
+    -i, --ignore    Pattern of files to be ignored
+    -V, --version   Output current version
+    -h, --help      Display help information
+
+EOF
+  exit 0
+}
+
+#
+# Output version-number.
+#
+
+display_version() {
+  echo $VERSION
+}
+
+#
+# Exclude files.
+#
+
+function exclude() {
+  PATTERN=$1
+  SRC=$(echo "$SRC" | grep -v $PATTERN)
+}
+
+#
+# Find widest line of a file.
+#
+
+function file_width() {
+  local length=0
+  IFS=
+  while read -r line; do
+    if [ ${#line} -gt $length ]; then length=${#line}; fi
+  done < "$1"
+  echo $length
+}
+
+#
+# Traverse directory and find files with long lines
+#
+
+function files_wider_than() {
+  [ $1 ] && local max=$1 || local max=75
+  local count=$(echo "$SRC" | wc -l)
+
+  for file in $SRC; do
+    local width=$(file_width $file)
+    if [ $width -gt $max ]; then
+      printf "  $width \033[31m$file\033[0m\n"
+    else
+      printf "  $width $file\n"
+    fi
+  done
+}
+
+#
+# Output some statistics about the source-code.
+#
+# FIXME Each of the statistics are limited to the size of argument-list
+#     | Solution would be to iterate chunks of files and just add to a
+#     | grand total. Perhaps a good Haskell-project
+#
+
+function statistics() {
+  local sloc=$(cat $SRC | wc -l)
+  local size=$(du -skh . | awk {'print $1'})
+  printf "  SLOC: %s\n" $sloc
+  printf "  Total size: %s\n" $size
+}
+
+#
+# Handle arguments.
+#
+
+[ $# -eq 0 ] && display_help;
+while test $# -ne 0; do
+  case $1 in
+    -i|--ignore) exclude $2; shift ;;
+    -V|--version) display_version ;;
+    -h|--help|help) display_help ;;
+    column) files_wider_than $2; exit ;;
+    stats) statistics; exit ;;
+    *) display_help; exit ;;
+  esac
+  shift
+done
+
